@@ -12,7 +12,9 @@ export type SocketErrorCallback = (error: { msg: string }) => void;
 export class SocketService {
   private socket: Socket | null = null;
   private socketUrl: string;
+  private currentToken: string | null = null;
   private currentJoinedChat: { chat_id: number; user_id?: number } | null = null;
+  private disconnectTimeout: any = null;
 
   private messageCallbacks: Set<MessageReceivedCallback> = new Set();
   private onlineUsersCallbacks: Set<OnlineUsersCallback> = new Set();
@@ -27,13 +29,27 @@ export class SocketService {
   }
 
   public connect(token: string): Socket {
-    if (this.socket && this.socket.connected) {
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
+      this.disconnectTimeout = null;
+    }
+
+    // Reuse active socket if token has not changed
+    if (
+      this.socket &&
+      this.currentToken === token &&
+      (this.socket.connected || (this.socket as any).active)
+    ) {
       return this.socket;
     }
 
-    // Clean up existing socket if disconnected or reconnecting
+    this.currentToken = token;
+
+    // Clean up existing socket if token changed or socket is inactive
     if (this.socket) {
+      this.socket.removeAllListeners();
       this.socket.disconnect();
+      this.socket = null;
     }
 
     this.socket = io(this.socketUrl, {
@@ -95,13 +111,30 @@ export class SocketService {
     return this.socket;
   }
 
-  public disconnect(): void {
-    if (this.socket) {
-      this.socket.removeAllListeners();
-      this.socket.disconnect();
-      this.socket = null;
-      this.currentJoinedChat = null;
-      this.notifyConnectionState(false, null);
+  public disconnect(immediate?: boolean): void {
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
+      this.disconnectTimeout = null;
+    }
+
+    const performDisconnect = () => {
+      if (this.socket) {
+        this.socket.removeAllListeners();
+        this.socket.disconnect();
+        this.socket = null;
+        this.currentToken = null;
+        this.currentJoinedChat = null;
+        this.notifyConnectionState(false, null);
+      }
+    };
+
+    // Immediate in Node/test environments or on explicit user logout
+    const shouldBeImmediate = immediate ?? (typeof window === 'undefined');
+    if (shouldBeImmediate) {
+      performDisconnect();
+    } else {
+      // Debounce disconnect by 150ms in browser to avoid aborting WebSocket in React StrictMode/HMR
+      this.disconnectTimeout = setTimeout(performDisconnect, 150);
     }
   }
 

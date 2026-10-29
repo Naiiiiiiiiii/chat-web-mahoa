@@ -73,7 +73,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load chats list
   const refreshChats = useCallback(async () => {
-    if (!token || !user) return;
+    if (!token || !userRef.current) return;
     setIsLoadingChats(true);
     try {
       const list = await chatService.getChats();
@@ -83,7 +83,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoadingChats(false);
     }
-  }, [token, user]);
+  }, [token]);
 
   // Handle incoming realtime message
   const handleIncomingMessage = useCallback(
@@ -133,8 +133,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Setup Socket.IO connection and lifecycle
   useEffect(() => {
-    if (!token || !user) {
-      socketService.disconnect();
+    if (!token || !user?.user_id) {
+      socketService.disconnect(true);
       setSocketConnected(false);
       setOnlineUserIds([]);
       setChats([]);
@@ -144,6 +144,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     socketService.connect(token);
+    setSocketConnected(socketService.isConnected());
 
     const unsubConn = socketService.onConnectionState((connected, err) => {
       setSocketConnected(connected);
@@ -169,7 +170,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unsubErr();
       socketService.disconnect();
     };
-  }, [token, user?.user_id, handleIncomingMessage, refreshChats]);
+  }, [token, user?.user_id]);
 
   // Synchronize active chat room with socket room
   useEffect(() => {

@@ -62,3 +62,7 @@ test-results/
 .nyc_output/
 .turbo/
 .cache/
+
+# Local personal defense questions
+CAU_HOI_BAO_VE_DO_AN.md
+
