@@ -179,6 +179,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    // Đảm bảo socket người gửi đã gia nhập room trước khi phát tin nhắn
+    client.join(`chat_${chatId}`);
+
     let keyDict: Record<string, string>;
     let aesKeyEncryptedStr: string;
 
